@@ -44,9 +44,9 @@ namespace AssistanceProject3rdProcesses
     { // Replace with your actual OpenAI API key
         private const string API_KEY = "xxxx"; // Replace with your OpenAI API Key
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            MainAsync(args).GetAwaiter().GetResult();
+            await MainAsync(args);
         }
         public static async Task MainAsync(string[] args)
         {
@@ -63,7 +63,7 @@ namespace AssistanceProject3rdProcesses
             if (string.IsNullOrEmpty(existingThreadId))
             {
                 // First time user — create thread via OpenAI
-                 threadId = CreateThread(apiKey).GetAwaiter().GetResult(); // API se mila thread id
+                 threadId = await CreateThread(apiKey); // API se mila thread id
                 SaveThreadIds(userId, threadId);
             }
             else
@@ -87,9 +87,9 @@ namespace AssistanceProject3rdProcesses
 
                 // Send to GPT
                 string responce = "";
-                AddMessageToThread(apiKey, threadId, Query).GetAwaiter().GetResult();
-                var runId = RunAssistant(apiKey, threadId, assistantIdJsonNew, vectorjsonNew);
-                string FinalResult = GetRunResult(apiKey, threadId, runId).GetAwaiter().GetResult();
+                await AddMessageToThread(apiKey, threadId, Query);
+                var runId = await RunAssistant(apiKey, threadId, assistantIdJsonNew, vectorjsonNew);
+                string FinalResult = await GetRunResult(apiKey, threadId, runId);
                 string UseridNew = "8077675133";
                 if (IsValidJson(FinalResult))
                 {
@@ -136,7 +136,7 @@ namespace AssistanceProject3rdProcesses
 
                     if (!string.IsNullOrEmpty(response.Reply))
                     {
-                        responce =  SendMessageAsync(UseridNew, "Text", "*" + response.Reply + "*", "", "").GetAwaiter().GetResult();
+                        responce = await SendMessageAsync(UseridNew, "Text", "*" + response.Reply + "*", "", "");
                         //await Task.Delay(300);
                     }
 
@@ -147,7 +147,7 @@ namespace AssistanceProject3rdProcesses
                     {
                         if (!string.IsNullOrEmpty(msg.ImageUrl))
                         {
-                               responce =  SendMessageAsync(UseridNew, "Image", msg.Text, msg.ImageUrl.Replace(" ", "%20"), msg.BuyUrl).GetAwaiter().GetResult();
+                               responce = await SendMessageAsync(UseridNew, "Image", msg.Text, msg.ImageUrl.Replace(" ", "%20"), msg.BuyUrl);
                             //await Task.Delay(300);
                         }
                     }
@@ -155,7 +155,7 @@ namespace AssistanceProject3rdProcesses
                     // 3. Send footer
                     if (!string.IsNullOrEmpty(response.Footer))
                     {
-                          responce =  SendMessageAsync(UseridNew, "Text", "*" + response.Footer + "*", "", "").GetAwaiter().GetResult();
+                          responce = await SendMessageAsync(UseridNew, "Text", "*" + response.Footer + "*", "", "");
                         // await Task.Delay(300);
                     }
 
@@ -698,19 +698,19 @@ namespace AssistanceProject3rdProcesses
             return response.IsSuccessStatusCode;
         }
 
-        public static string TranscribeFromUrl(string apiKey, string audioUrl)
+        public static async Task<string> TranscribeFromUrl(string apiKey, string audioUrl)
         {
             // Temporary file to save the downloaded audio
             string tempPath = Path.Combine(Path.GetTempPath(), "converted_audio.mp3");
 
             using (var httpClient = new HttpClient())
             {
-                var audioBytes = httpClient.GetByteArrayAsync(audioUrl).Result;
+                var audioBytes = await httpClient.GetByteArrayAsync(audioUrl);
                 File.WriteAllBytes(tempPath, audioBytes); // ✅ Save as file
             }
 
             // Transcribe from the saved local file
-            return TranscribeAudio(apiKey, tempPath).GetAwaiter().GetResult();
+            return await TranscribeAudio(apiKey, tempPath);
         }
         public static async Task<string> TranscribeAudio(string apiKey, string audioFilePath)
         {
@@ -751,98 +751,106 @@ namespace AssistanceProject3rdProcesses
         static async Task<string> CreateThread(string apiKey)
         {
             System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            var client = new HttpClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
-            var content = new StringContent("{}", Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("https://api.openai.com/v1/threads", content);
-            var result = await response.Content.ReadAsStringAsync();
-         //   Console.WriteLine("Thread: " + result);
-            return JsonConvert.DeserializeObject<dynamic>(result).id;
+            using (var client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
+                var content = new StringContent("{}", Encoding.UTF8, "application/json");
+                var response = await client.PostAsync("https://api.openai.com/v1/threads", content);
+                var result = await response.Content.ReadAsStringAsync();
+             //   Console.WriteLine("Thread: " + result);
+                return JsonConvert.DeserializeObject<dynamic>(result).id;
+            }
         }
         static async Task AddMessageToThread(string apiKey, string threadId, string message)
         {
             System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            var client = new HttpClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
-            var body = new { role = "user", content = message };
-            var content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
-            var response = await client.PostAsync($"https://api.openai.com/v1/threads/{threadId}/messages", content);
-            var result = await response.Content.ReadAsStringAsync();
-           // Console.WriteLine("Message: " + result);
+            using (var client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
+                var body = new { role = "user", content = message };
+                var content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
+                var response = await client.PostAsync($"https://api.openai.com/v1/threads/{threadId}/messages", content);
+                var result = await response.Content.ReadAsStringAsync();
+               // Console.WriteLine("Message: " + result);
+            }
         }
-        static string RunAssistant(string apiKey, string threadId, string assistantId, string fileId)
+        static async Task<string> RunAssistant(string apiKey, string threadId, string assistantId, string fileId)
         {
             System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
 
-            var client = new HttpClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
-
-            var body = new
+            using (var client = new HttpClient())
             {
-                assistant_id = assistantId,
-                tool_resources = new
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
+
+                var body = new
                 {
-                    file_search = new
+                    assistant_id = assistantId,
+                    tool_resources = new
                     {
-                        vector_store_ids = new[] { fileId } // ✅ Link your file here
+                        file_search = new
+                        {
+                            vector_store_ids = new[] { fileId } // ✅ Link your file here
+                        }
                     }
-                }
-            };
+                };
 
-            var content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
-            var response = client.PostAsync($"https://api.openai.com/v1/threads/{threadId}/runs", content).Result;
+                var content = new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json");
+                var response = await client.PostAsync($"https://api.openai.com/v1/threads/{threadId}/runs", content);
 
-            var result = response.Content.ReadAsStringAsync().Result;
-           // Console.WriteLine("Run: " + result);
-            return JsonConvert.DeserializeObject<dynamic>(result).id;
+                var result = await response.Content.ReadAsStringAsync();
+               // Console.WriteLine("Run: " + result);
+                return JsonConvert.DeserializeObject<dynamic>(result).id;
+            }
         }
 
         static async Task<string> GetRunResult(string apiKey, string threadId, string runId)
         {
             System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            var client = new HttpClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
-            while (true)
+            using (var client = new HttpClient())
             {
-                var response = await client.GetAsync($"https://api.openai.com/v1/threads/{threadId}/runs/{runId}");
-                var result = await response.Content.ReadAsStringAsync();
-                Console.WriteLine("Run Status: " + result);
-                var status = JsonConvert.DeserializeObject<dynamic>(result).status.ToString();
-                if (status == "completed") break;
-                await Task.Delay(2000);
-            }
-
-            var messagesResponse = await client.GetAsync($"https://api.openai.com/v1/threads/{threadId}/messages");
-            var messagesResult = await messagesResponse.Content.ReadAsStringAsync();
-           // Console.WriteLine("Messages: " + messagesResult);
-
-            var root = JObject.Parse(messagesResult);
-
-            // Loop through messages
-            foreach (var message in root["data"])
-            {
-                var role = message["role"]?.ToString();
-                if (role == "assistant")
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
+                while (true)
                 {
-                    // Navigate to content → text → value
-                    var contentArray = message["content"];
-                    foreach (var content in contentArray)
+                    var response = await client.GetAsync($"https://api.openai.com/v1/threads/{threadId}/runs/{runId}");
+                    var result = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine("Run Status: " + result);
+                    var status = JsonConvert.DeserializeObject<dynamic>(result).status.ToString();
+                    if (status == "completed") break;
+                    await Task.Delay(2000);
+                }
+
+                var messagesResponse = await client.GetAsync($"https://api.openai.com/v1/threads/{threadId}/messages");
+                var messagesResult = await messagesResponse.Content.ReadAsStringAsync();
+               // Console.WriteLine("Messages: " + messagesResult);
+
+                var root = JObject.Parse(messagesResult);
+
+                // Loop through messages
+                foreach (var message in root["data"])
+                {
+                    var role = message["role"]?.ToString();
+                    if (role == "assistant")
                     {
-                        var type = content["type"]?.ToString();
-                        if (type == "text")
+                        // Navigate to content → text → value
+                        var contentArray = message["content"];
+                        foreach (var content in contentArray)
                         {
-                            var value = content["text"]?["value"]?.ToString();
-                            return value;
+                            var type = content["type"]?.ToString();
+                            if (type == "text")
+                            {
+                                var value = content["text"]?["value"]?.ToString();
+                                return value;
+                            }
                         }
                     }
                 }
-            }
 
-            return null;
+                return null;
+            }
         }
 
         public static string UploadFile(string apiKey, string filePath)
