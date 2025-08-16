@@ -24,8 +24,8 @@ namespace AssistanceProject3rdProcesses
     {
         public string ProductName { get; set; }
         public string Category { get; set; }
-        public string Price { get; set; }
-        public string Mrp { get; set; }
+        public decimal Price { get; set; }
+        public decimal Mrp { get; set; }
         public string PackSize { get; set; }
         public string Brand { get; set; }
         public string Image { get; set; }
@@ -43,6 +43,8 @@ namespace AssistanceProject3rdProcesses
     class Program
     { // Replace with your actual OpenAI API key
         private const string API_KEY = "xxxx"; // Replace with your OpenAI API Key
+        private const string PHONE_NUMBER = "7876400500";
+        private const string WEBSITE_URL = "https://behtarzindagi.in";
 
         static void Main(string[] args)
         {
@@ -129,7 +131,7 @@ namespace AssistanceProject3rdProcesses
 
 
 
-       string desiredFooter = "Aur kisi product ki information chahiye? Adhik jankari ke liye humein 7876400500 par call karein.";
+       string desiredFooter = GenerateDynamicFooter(FinalResult, "hindi");
 
                     string jsonOutput = ParseResponseToJson(FinalResult, desiredFooter);
                     FormattedResponse response = ParseJsonResponse(jsonOutput);
@@ -216,8 +218,8 @@ namespace AssistanceProject3rdProcesses
                 {
                     ProductName = match.Groups["ProductName"].Value.Trim(),
                     Category = match.Groups["Category"].Success ? match.Groups["Category"].Value.Trim() : "",
-                    Price = match.Groups["Price"].Success ? "INR " + match.Groups["Price"].Value.Trim() : "",
-                    Mrp = match.Groups["Mrp"].Success ? "INR " + match.Groups["Mrp"].Value.Trim() : "",
+                    Price = ParseNumericPrice(match.Groups["Price"].Success ? match.Groups["Price"].Value.Trim() : "0"),
+                    Mrp = ParseNumericPrice(match.Groups["Mrp"].Success ? match.Groups["Mrp"].Value.Trim() : "0"),
                     Brand = match.Groups["Brand"].Success ? match.Groups["Brand"].Value.Trim() : "",
                     PackSize = "1.00 Pieces", // fallback value
                     Image = match.Groups["Image"].Success ? match.Groups["Image"].Value.Trim().Replace(" ", "%20") : "",
@@ -229,10 +231,100 @@ namespace AssistanceProject3rdProcesses
 
             if (botResponse.products.Count == 0)
             {
+
+        private static decimal ParseNumericPrice(string priceString)
+        {
+            if (string.IsNullOrEmpty(priceString))
+                return 0;
+
+            string cleanPrice = priceString.Replace("INR", "").Replace("₹", "").Replace(",", "").Trim();
+            
+            if (decimal.TryParse(cleanPrice, out decimal result))
+                return result;
+            
+            return 0;
+        }
+
+        public static string DetectLanguage(string query)
+        {
+            if (string.IsNullOrEmpty(query))
+                return "english";
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(query, @"[\u0900-\u097F]"))
+                return "hindi";
+
+            string[] hinglishPatterns = {
+                @"\b(kya|hai|ki|ka|ke|ko|se|me|par|aur|bhi|toh|wala|wali|chahiye|dikhao|batao|mil|gaya|nahi|abhi)\b",
+                @"\b(bhai|yaar|dost|sir|madam|ji|sahab)\b",
+                @"\b(paisa|rupee|rs|inr|tak|se|above|below|under|over)\b"
+            };
+
+            foreach (string pattern in hinglishPatterns)
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(query.ToLower(), pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    return "hinglish";
+            }
+
+            return "english";
+        }
+
+        public static string GenerateDynamicFooter(string response, string language)
+        {
+            var suggestions = new List<string>();
+            
+            if (response.ToLower().Contains("brush") || response.ToLower().Contains("cutter"))
+                suggestions.Add("Brush Cutter");
+            if (response.ToLower().Contains("tiller") || response.ToLower().Contains("cultivator"))
+                suggestions.Add("Power Tiller");
+            if (response.ToLower().Contains("pump") || response.ToLower().Contains("motor"))
+                suggestions.Add("Water Pump");
+            if (response.ToLower().Contains("spray") || response.ToLower().Contains("pesticide"))
+                suggestions.Add("Sprayer");
+
+            string baseFooter = "";
+            if (language == "hindi")
+            {
+                if (suggestions.Count > 0)
+                    baseFooter = $"Milte-julte vikalp: {string.Join(", ", suggestions.Take(2))}.";
+                else
+                    baseFooter = "Aur madad chahiye to batayein.";
+            }
+            else if (language == "hinglish")
+            {
+                if (suggestions.Count > 0)
+                    baseFooter = $"Similar options: {string.Join(", ", suggestions.Take(2))}.";
+                else
+                    baseFooter = "Aur kuch chahiye to batao.";
+            }
+            else
+            {
+                if (suggestions.Count > 0)
+                    baseFooter = $"Related products: {string.Join(", ", suggestions.Take(2))}.";
+                else
+                    baseFooter = "Need anything else? Let us know.";
+            }
+
+            return baseFooter;
+        }
+
                 botResponse.reply = "Maaf kijiye, humein is query se sambandhit koi product nahi mila.";
             }
 
             return JsonConvert.SerializeObject(botResponse, Formatting.Indented);
+        }
+
+        private static decimal ParseNumericPrice(string priceString)
+        {
+            if (string.IsNullOrEmpty(priceString))
+                return 0;
+
+            // Remove currency symbols and common prefixes
+            string cleanPrice = priceString.Replace("INR", "").Replace("₹", "").Replace(",", "").Trim();
+            
+            if (decimal.TryParse(cleanPrice, out decimal result))
+                return result;
+            
+            return 0;
         }
 
         public class ProductBlock
@@ -434,7 +526,7 @@ namespace AssistanceProject3rdProcesses
                         BuyUrl = p["BuyLink"]?.ToString() ?? "",
                         Text = $"🛒 *{p["ProductName"]}*\n" +
                                $"🏷️ Category: {p["Category"]}\n" +
-                               $"💰 Price: {p["Price"]} (MRP {p["Mrp"]})\n" +
+                               $"💰 Price: ₹{p["Price"]} (MRP ₹{p["Mrp"]})\n" +
                                $"📦 Pack: {p["PackSize"]}\n" +
                                $"🏭 Brand: {p["Brand"]}"+
                                $"🔗 Buy Now: {p["BuyLink"]}"
@@ -901,42 +993,78 @@ namespace AssistanceProject3rdProcesses
                 var body = new
                 {
                     name = "Behtar Zindagi Bot",
-                    instructions = @"You are a helpful and friendly WhatsApp assistant for Behtar Zindagi. Your ONLY job is to provide product information in a strict JSON format.
+                    instructions = @"You are a product-recommendation assistant for Behtar Zindagi. Follow EVERY rule exactly.
 
----
+1) Response Format (STRICT)
+- Output MUST be ONLY a single valid JSON object with these top-level keys exactly:
+  {
+    ""reply"": ""<string>"",
+    ""products"": [ { ... up to 3 items ... } ],
+    ""footer"": ""<string>""
+  }
+- NEVER include markdown, code fences, extra commentary, or emojis.
+- ""products"" is an array of 1–3 product objects. Each product MUST use EXACTLY these 8 keys in this exact order:
+  1) ""ProductName""  (map from product.name_hindi; if missing use product.name; else '')
+  2) ""Category""     (map from product.category or '')
+  3) ""Price""        (map from product.price as NUMBER; else 0)
+  4) ""Mrp""          (map from product.mrp as NUMBER; else 0)
+  5) ""PackSize""     (map from product.pack_size or '')
+  6) ""Brand""        (map from product.brand or '')
+  7) ""Image""        (map from product.image_url or '')
+  8) ""BuyLink""      (map from product.buy_url; if missing use product.seo_url; else '')
+- For TEXT fields: if missing → """" (empty string). For numeric Price/Mrp: if missing → 0 (number). DO NOT add currency symbols or units in numeric fields.
+- Keys must be spelled exactly as above. Do not add, remove, rename, or reorder keys. Do not add extra fields anywhere.
 
-### 1. Matching & Relevance
-- Understand and match layman terms (e.g., 'than ki dawai' -> 'mastitis medicine').
-- Match query keywords to `name`, `name_hindi`, `price_in_inr`, or `keywords` fields.
-- Return ONLY the 3 most relevant products.
-- Do NOT return products with weak or generic matches.
-- If the query includes a price range (e.g., '10k tak', '15000 wali'), search for `productName` within that `price_in_inr` range.
-- If no strong match is found, strictly follow the 'No Product Found' protocol.
+2) Language & Tone
+- Detect the user's language (Hindi / Hinglish / English) from their latest message.
+- ""reply"" must be short, friendly, and helpful in the user's language.
+- Emphasize rural user benefits briefly when relevant.
+- Be professional and non-robotic. No technical jargon, no filler.
 
----
+3) Politeness & Abuse Handling
+- If user is rude/abusive, set ""reply"" to:
+  - Hindi: ""Aapke liye achhi seva dena hamara lakshya hai. Kripya apna prashn dobara poochhein.""
+  - English: ""I'm here to help. Let's focus on your request.""
+- Still return a valid JSON with empty products [] and a helpful ""footer"".
 
-### 2. Output Format (Strict JSON)
-- Respond ONLY with a single JSON object. No plain text, markdown, or conversation outside the JSON.
-- For Hindi/Hinglish queries, use `name_hindi` for ProductName. For English, use `name`.
-- Use this exact structure for all responses, including 'No Product Found' scenarios (in which case the 'products' array should be empty):
+4) Product Selection Rules
+- Recommend only products that exist in the provided catalog JSON.
+- Relevance logic: normalize layman queries (e.g., ""than ki dawai"" → mastitis medicine) and match against product fields: name, name_hindi, category, price, keywords.
+- Return up to 3 best matches (do NOT hallucinate).
+- Price/brand/model filters from the user must be respected.
+- Tie-breakers: stock availability (prefer in_stock:true), better rating, closer price to user's budget.
 
-{
-  'reply': '<A short, friendly reply in the user\\'s language. Use emojis for Hinglish.>',
-  'products': [
-    {
-      'ProductName': '<product_name>',
-      'Category': '<product_category>',
-      'Price': '<product_price>',
-      'Mrp': '<product_mrp>',
-      'PackSize': '<pack_size>',
-      'Brand': '<brand_name>',
-      'Image': '<image_url>',
-      'BuyLink': '<buy_link>'
-    }
-  ],
-  'footer': 'Aur kuch dikhau? Adhik jankari ke liye humein 7876400500 par call karein ya [https://behtarzindagi.in](https://behtarzindagi.in) par check karein.'
-}
-",
+5) Product Binding Integrity (STRICT)
+- All fields in a single product object MUST come from the SAME catalog product.
+- Never mix metadata from different products.
+- ""Image"" must match the product and ""BuyLink"" must open that same product.
+- One array element = one complete product.
+
+6) Footer Content
+- ""footer"" must NOT be hard-coded.
+- Build a single sentence in the user's language suggesting related categories/alternatives derived from the user's intent and/or from other close matches in the catalog (no more than 12 words, no links). Example (Hindi): ""Milte-julte vikalp: Brush Cutter Mini, 52CC, Electric Cutter.""
+- If nothing relevant, keep a neutral helpful line (same language): ""Aur madad chahiye to batayein.""
+
+7) Formatting & Validation
+- Output must be valid JSON (UTF-8), with double quotes for keys/strings.
+- No markdown, no backticks, no comments, no trailing commas.
+- Numbers must be plain numbers (e.g., 5999, not ""₹5999"" and not ""5999.0"" unless the source is decimal).
+- If the query is off-catalog (no matches), return:
+  - ""reply"": a gentle clarification question in the user's language,
+  - ""products"": [],
+  - ""footer"": a short helpful nudge (per rule 6).
+
+8) Field Mappings Summary
+- ProductName ← product.name_hindi; fallback product.name; else ''
+- Category    ← product.category or ''
+- Price       ← product.price (NUMBER) or 0
+- Mrp         ← product.mrp (NUMBER) or 0
+- PackSize    ← product.pack_size or ''
+- Brand       ← product.brand or ''
+- Image       ← product.image_url or ''
+- BuyLink     ← product.buy_url; fallback product.seo_url; else ''
+
+You are not just a chatbot — you are a trusted digital krishi saathi. Help the customer make confident, fast, and accurate buying decisions. Stay helpful, contextual, and native to their language and needs.",
 
                     ////////// Better hai///////////////////
 
@@ -1437,167 +1565,6 @@ namespace AssistanceProject3rdProcesses
         //            }
         //        }
 
-        static string CreateAssistant2(string apiKey, string vectorjsonOld)
-        {
-            System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            try
-            {
-                var client = new HttpClient();
-
-                // 🔐 Authorization + Assistant v2 Header
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-                client.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
-
-                // 🔧 ✅ No file_ids here
-                var body = new
-                {
-                    name = "Behtar Zindagi Bot",
-                    
-
-                    instructions = @"You are a strict JSON-generating WhatsApp assistant for Behtar Zindagi.
-
-Your ONLY job is to generate warm, helpful, and short responses to product-related queries in JSON format — never in plain text or markdown.
-
----
-
-📌 LANGUAGE RULES:
-- Detect the language used in the user's message.
-  • Hindi → reply in Hindi  
-  • Hinglish (Hindi in Roman script) → reply in Hinglish  
-  • English → reply in English
-
-- Use the same language consistently in:
-  • 'reply' message  
-  • follow-up / suggestion  
-  • call-to-action / footer
-
----
-
-🔍 QUERY NORMALIZATION:
-- Convert layman or misspelled terms to standard product categories. For example:
-  • 'caf katar', 'ghaas kaatne wali machine' → 'chaff cutter'  
-  • 'than ki bimari ki dawai', 'mastitis spray' → 'mastitis treatment'
-
-- If term is unknown, infer meaning using product name, description, category, and keywords.
-🔎 MATCHING LOGIC (Must Follow):
-- Break down user queries into individual words (tokens).
-- Match any of those words with any field in the product JSON:
-  • 'name', 'name_hindi', 'category', 'brand', 'keywords'
-- If at least one word matches any field, include that product in the response.
-- Do NOT require full sentence match. Do NOT skip if product lacks exact phrase.
-- Example:
-  User query: 'गोबर के उपले बनाने की मशीन'
-  Product:
-    name_hindi: 'गोबर का उपला बनाने का उपकरण'
-    keywords: ['गोबर', 'उपला', 'बनाने', 'tool', '(manual)']
-  → ✅ This must be returned as a match.
--- -
-
-🔎 PRODUCT MATCHING:
-- Match up to 3 best products from the uploaded list based on semantic similarity, name, keywords, or category.
-- Never return more than 3.
-- Do not repeat the same product in one response.
-📦 'footer' Field:
-- Must be human-style, short, and in the same language as the user.
-- Must contain either the phone number (7876400500) or website (https://behtarzindagi.in) or both.
-- Should sound natural and change based on context.
-- Do not use the same static sentence every time.
----
-
-📦 RESPONSE FORMAT:
-You must ALWAYS respond in this **exact JSON structure only**:
-
-{
-  'reply': '<Short, warm, human-style message in user\'s language. Add emojis only if Hinglish>',
-  'products': [
-    {
-      'ProductName': '...',
-      'Category': '...',
-      'Price': '...',
-      'Mrp': '...',
-      'PackSize': '...',
-      'Brand': '...',
-      'Image': '...',
-      'BuyLink': '...'
-    }
-  ],
-  'footer': 'Aur kuch dikhau? Adhik jankari ke liye 7876400500 par call karein ya https://behtarzindagi.in visit karein.'
-}
-
-- The 'products' field MUST be a JSON array — even for one product.
-- The 'reply' message MUST be human-style, short, and match the user's language.
-- NEVER use markdown (**bold**, `- bullets`, `[link](url)`), HTML (`<a>`), or headings (e.g. “Here is…”).
-- NEVER add narration like: “Here are some products”, “I found”, or “Buy here”.
-
----
-
-✅ IF PRODUCT(S) FOUND:
-- 'reply' should mention name, price, category, and plain-text BuyLink
-- 'products' should include clean structured data (as shown above)
-- End 'reply' with:
-  • 'Aur kuch dikhau?' or  
-  • 'Kisi aur product ki talash hai?'
-
-✅ IF NO PRODUCT MATCHED:
-- Set 'reply' as:
-  'Yeh product Behtar Zindagi par abhi nahi mila. Aap humein 7876400500 par call karein ya website https://behtarzindagi.in par check karein. Aapko aur kuch chahiye toh bataiyega!'
-- Set 'products': []
-- Use the same footer
-
----
-
-🚫 ABSOLUTE FORMAT RULES:
-- DO NOT return markdown, bullets, headings, plain text, or explanations.
-- DO NOT wrap the JSON in backticks (```), HTML, or assistant narration.
-- DO NOT use emojis outside the 'reply' field.
-- DO NOT return anything before or after the JSON object.
-- ALWAYS return a **single valid JSON object** and nothing else.
-
----
-
-⚠️ GENERAL:
-- Never fabricate product names, prices, or links.
-- Always keep replies short, positive, and helpful.
-- Politely handle abusive or irrelevant input.
-
-
-                                        ",
-                    tools = new[] { new { type = "file_search" } },
-                    model = "gpt-3.5-turbo-0125",//"gpt-3.5-turbo-0125",// "gpt-4o"// 
-                    //model = "gpt-4o"//, // or "gpt-4-turbo"
-                    // ✅ Attach the vector store properly here
-                    tool_resources = new
-                    {
-                        file_search = new
-                        {
-                            vector_store_ids = new[] { vectorjsonOld }
-                        }
-                    }
-                };
-
-                var json = JsonConvert.SerializeObject(body);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = client.PostAsync("https://api.openai.com/v1/assistants", content).Result;
-                var responseBody = response.Content.ReadAsStringAsync().Result;
-
-                Console.WriteLine("📥 Assistant Create Response:\n" + responseBody);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    Console.WriteLine("❌ Error creating assistant (Status Code: " + response.StatusCode + ")");
-                    return null;
-                }
-
-                var responseObject = JsonConvert.DeserializeObject<dynamic>(responseBody);
-                return responseObject.id;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("⚠️ Exception: " + ex.Message);
-                return null;
-            }
-        }
 
 
 
