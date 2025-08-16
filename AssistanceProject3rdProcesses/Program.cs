@@ -1063,9 +1063,11 @@ namespace AssistanceProject3rdProcesses
 
 - Match against: name, category, name_hindi, price, keywords.
 - **NEGATIVE KEYWORD FILTERING**: If user says ""machine nahi chahiye"" or ""no machine"", EXCLUDE all products containing ""machine"" in name, category, or keywords.
+- **NEGATIVE INTENT DETECTION**: If user says ""nahi chahiye"", ""don't want"", ""mat do"", ""cancel"", ""no products needed"", respond with empty products array and helpful message.
 - **RELATIVE PRICE SORTING**: For queries like ""sasti chaff cutter"" or ""cheap pump"", sort results by ASCENDING price (cheapest first). For ""expensive"" or ""premium"", sort by DESCENDING price.
 - Always sort products by relevance to the user's query (based on keyword match in name), then apply price sorting if detected.
-- Respect price constraints like ""10k wali"",""10k tak"", ""₹10000"", etc.
+- **PRICE RANGE FILTERING**: Parse specific price ranges like ""under Rs 20000"", ""20k tak"", ""below ₹15000"", ""10 se 15 hazar"", ""16k tak"" and filter products accordingly.
+- Respect ALL price constraints including ranges, maximum limits, and budget specifications.
 - Always return 3–4 products. If less than 3 match, show related products.
 - Never return only 1 if more options exist.
 - Never assume, guess or invent products.
@@ -1114,7 +1116,14 @@ You are a product-recommendation assistant for Behtar Zindagi. Follow EVERY rule
 4) Enhanced Product Selection Rules
 - Recommend only products that exist in the provided catalog JSON.
 - **NEGATIVE FILTERING**: Extract negative keywords from queries (e.g., ""chaff cutter, machine nahi chahiye"" → exclude products with ""machine"").
+- **PRICE RANGE FILTERING**: Parse and apply specific price ranges:
+  - ""under Rs 20000"" → filter products where price < 20000
+  - ""20k tak"" → filter products where price <= 20000
+  - ""below ₹15000"" → filter products where price < 15000
+  - ""10 se 15 hazar"" → filter products where price >= 10000 AND price <= 15000
+  - ""16k tak"" → filter products where price <= 16000
 - **PRICE SORTING**: Detect relative price terms (""sasti"", ""cheap"" → ascending price; ""expensive"", ""premium"" → descending price).
+- **REJECTION HANDLING**: If user says ""nahi chahiye"", ""don't want"", ""mat do"", ""cancel"", ""no products needed"", return empty products array with helpful message.
 - Relevance logic: normalize layman queries (e.g., ""than ki dawai"" → mastitis medicine) and match against product fields: name, name_hindi, category, price, keywords.
 - Return up to 3 best matches (do NOT hallucinate).
 - Price/brand/model filters from the user must be respected.
@@ -1173,10 +1182,22 @@ Invalid (reasons): mixed fields from multiple products; extra keys; strings for 
 
 ## 🔍 Enhanced Search Logic Rules
 
-1. **Negative Keyword Detection**: Parse queries for patterns like ""X nahi chahiye"", ""no X"", ""without X"" and exclude matching products.
-2. **Price Sorting Intelligence**: Detect ""sasti"", ""cheap"", ""budget"" → sort ascending; ""expensive"", ""premium"", ""costly"" → sort descending.
-3. **Layman Term Mapping**: ""than ki dawai"" → mastitis medicine, ""kharpatwar"" → weed killer, ""beej"" → seeds.
-4. **Context Preservation**: Maintain search intent across follow-up questions within same conversation.
+1. **Negative Keyword Detection**: Parse queries for patterns like ""X nahi chahiye"", ""no X"", ""without X"", ""mat chahiye"" and exclude matching products.
+2. **Price Range Parsing**: Extract specific price ranges and apply strict filtering:
+   - ""under Rs 20000"" / ""20k tak"" → price <= 20000
+   - ""below ₹15000"" → price < 15000
+   - ""10 se 15 hazar"" → price >= 10000 AND price <= 15000
+   - ""above 25k"" → price > 25000
+3. **Price Sorting Intelligence**: Detect ""sasti"", ""cheap"", ""budget"" → sort ascending; ""expensive"", ""premium"", ""costly"" → sort descending.
+4. **Rejection Intent Detection**: If user says ""nahi chahiye"", ""don't want"", ""mat do"", ""cancel"", ""no products needed"", return empty products with helpful message.
+5. **Layman Term Mapping**: ""than ki dawai"" → mastitis medicine, ""kharpatwar"" → weed killer, ""beej"" → seeds.
+6. **Context Preservation**: Maintain search intent across follow-up questions within same conversation.
+
+## 🚫 Critical Rejection Scenarios
+- If user says ""nahi chahiye"" without specifying product → return empty products array
+- If user says ""cancel"" or ""mat do"" → return empty products array  
+- If user says ""no products needed"" → return empty products array
+- If user explicitly rejects suggestions → acknowledge and ask for clarification
 
 ## 🎯 Final Rule
 
